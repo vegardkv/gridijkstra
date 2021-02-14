@@ -1,4 +1,4 @@
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Union, Dict
 import scipy.sparse as scs
 import numpy as np
 
@@ -18,16 +18,34 @@ def _transform_node_input(nodes):
     return nodes
 
 
-def plan(sources: np.ndarray,
-         destinations: np.ndarray,
-         costs,
+def plan(costs: Union[np.ndarray, Dict[Tuple[int, int]], np.ndarray],
+         indices_start: np.ndarray,
+         indices_target: np.ndarray,
          stencil: Optional[List[Tuple[int, int]]] = None,
          return_length: bool = True,
          return_total_cost: bool = False):
+    """
+    Dijkstra's algorithm (scipy) for grid-based-graphs
+    :param costs: Traversal costs. If an numpy.ndarray is provided, costs[i, j] represents the traversal intensity
+        (cost-per-length) of traversing from (i, j) to either of its neighbors (defined by 'stencil'). If a dict is
+        provided, the keys are a (di, dj) pair and the values are traversal intensity maps such that
+        costs[(di, dj)][i, j] is the cost of traversing from (i, j) to (i + di, j + dj). Assuming a ni x nj traversal
+        grid, the dimensionality of the intensity maps should be ni x nj.
+    :param indices_start: numpy.ndarray-like. Compute the paths from these indices. Shape must be either (2,) or (N, 2),
+        with N being the number of paths to compute.
+    :param indices_target: numpy.ndarray-like. Compute the paths to these indices. Similar to indices_start. Must have
+        the same shape as indices_start.
+    :param stencil: Only used if 'costs' is provided as an numpy.ndarray. Defines the neighborhood stencil as a list of
+        tuples. Defaults to [(0, 1), (1, 0), (-1, 0), (0, -1)].
+    :param return_length:
+    :param return_total_cost:
+    :return:
+    """
+    # TODO: default stencil when costs is provided
     # Combinations are not assumed, only pairwise paths:
-    assert len(sources) == len(destinations)  # TODO: Add option to extend with all combinations
-    sources = _transform_node_input(sources)
-    destinations = _transform_node_input(destinations)
+    assert len(indices_start) == len(indices_target)  # TODO: Add option to extend with all combinations
+    indices_start = _transform_node_input(indices_start)
+    indices_target = _transform_node_input(indices_target)
 
     # Handle costs
     if isinstance(costs, np.ndarray):
@@ -80,8 +98,8 @@ def plan(sources: np.ndarray,
     # Convert to flat index
     g0_q = _from_ij(g0_ij[:, 0], g0_ij[:, 1])
     g1_q = _from_ij(g1_ij[:, 0], g1_ij[:, 1])
-    sources_q = _from_ij(sources[:, 0], sources[:, 1])
-    destinations_q = _from_ij(destinations[:, 0], destinations[:, 1])
+    sources_q = _from_ij(indices_start[:, 0], indices_start[:, 1])
+    destinations_q = _from_ij(indices_target[:, 0], indices_target[:, 1])
 
     # Define traversal graph
     g = scs.coo_matrix((g_costs, (g0_q, g1_q)), shape=(ni * nj, ni * nj))
@@ -106,7 +124,7 @@ def plan(sources: np.ndarray,
     if return_total_cost:
         output.append(total_costs[np.arange(destinations_q.size), destinations_q])
 
-    if sources.shape[0] == 1:
+    if indices_start.shape[0] == 1:
         output = [ou[0] for ou in output]
 
     return tuple(output)
