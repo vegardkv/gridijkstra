@@ -105,23 +105,25 @@ def plan(costs: Union[np.ndarray, Dict[Tuple[int, int], np.ndarray]],
 
     # Define traversal graph
     g = scs.coo_matrix((g_costs, (g0_q, g1_q)), shape=(ni * nj, ni * nj))
+    # TODO: handle duplicates in indices_start
+    sq_uniq, sq_inv = np.unique(sources_q, return_inverse=True)
     if return_path is True or return_length is True:
-        total_costs, predecessors = scs.csgraph.dijkstra(g, indices=sources_q, return_predecessors=True)
+        total_costs, predecessors = scs.csgraph.dijkstra(g, indices=sq_uniq, return_predecessors=True)
         # Reconstruct paths
         paths = []
         for i, (s, d) in enumerate(zip(sources_q, destinations_q)):
             p = [d]
             while p[-1] != -9999 and p[-1] != s:
-                p.append(predecessors[i, p[-1]])
+                p.append(predecessors[sq_inv[i], p[-1]])
             paths.append(p[::-1])
         # Convert paths to ij indices
         paths_ij = [np.array(_to_ij(p)).T for p in paths]
     else:
-        total_costs = scs.csgraph.dijkstra(g, indices=sources_q)
+        total_costs = scs.csgraph.dijkstra(g, indices=sq_uniq)
         paths_ij = None
 
     # Pack output
-    output = [total_costs[np.arange(destinations_q.size), destinations_q]]
+    output = [total_costs[sq_inv, destinations_q]]
     if return_path:
         output.append(paths_ij)
     if return_length:
