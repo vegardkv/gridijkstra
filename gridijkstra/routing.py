@@ -3,6 +3,9 @@ import scipy.sparse as scs
 import numpy as np
 
 
+# TODO: replace assert by exception/warnings etc.
+
+
 def _transform_node_input(nodes):
     if not isinstance(nodes, np.ndarray):
         nodes = np.array(nodes)
@@ -18,12 +21,12 @@ def _transform_node_input(nodes):
     return nodes
 
 
-def plan(costs: Union[np.ndarray, Dict[Tuple[int, int]], np.ndarray],
-         indices_start: np.ndarray,
-         indices_target: np.ndarray,
+def plan(costs: Union[np.ndarray, Dict[Tuple[int, int], np.ndarray]],
+         indices_start: Union[np.ndarray, List],
+         indices_target: Union[np.ndarray, List],
          stencil: Optional[List[Tuple[int, int]]] = None,
-         return_length: bool = True,
-         return_total_cost: bool = False):
+         return_path: bool = False,
+         return_length: bool = False):
     """
     Dijkstra's algorithm (scipy) for grid-based-graphs
     :param costs: Traversal costs. If an numpy.ndarray is provided, costs[i, j] represents the traversal intensity
@@ -37,11 +40,10 @@ def plan(costs: Union[np.ndarray, Dict[Tuple[int, int]], np.ndarray],
         the same shape as indices_start.
     :param stencil: Only used if 'costs' is provided as an numpy.ndarray. Defines the neighborhood stencil as a list of
         tuples. Defaults to [(0, 1), (1, 0), (-1, 0), (0, -1)].
+    :param return_path:
     :param return_length:
-    :param return_total_cost:
     :return:
     """
-    # TODO: default stencil when costs is provided
     # Combinations are not assumed, only pairwise paths:
     assert len(indices_start) == len(indices_target)  # TODO: Add option to extend with all combinations
     indices_start = _transform_node_input(indices_start)
@@ -50,11 +52,11 @@ def plan(costs: Union[np.ndarray, Dict[Tuple[int, int]], np.ndarray],
     # Handle costs
     if isinstance(costs, np.ndarray):
         # Costs are provided as an intensity map, we need the stencil though.
-        assert stencil is not None
+        if stencil is None:
+            stencil = [(0, 1), (1, 0), (-1, 0), (0, -1)]
         costs = {s: costs for s in stencil}
     else:
         assert isinstance(costs, dict)
-        # If stencil is provided, warn that it will not be used
 
     # Define index transformation functions
     ni, nj = next(iter(costs.values())).shape  # TODO: verify that all costs-elements have same shape
@@ -103,28 +105,34 @@ def plan(costs: Union[np.ndarray, Dict[Tuple[int, int]], np.ndarray],
 
     # Define traversal graph
     g = scs.coo_matrix((g_costs, (g0_q, g1_q)), shape=(ni * nj, ni * nj))
-    total_costs, predecessors = scs.csgraph.dijkstra(g, indices=sources_q, return_predecessors=True)
-
-    # Reconstruct paths
-    paths = []
-    for i, (s, d) in enumerate(zip(sources_q, destinations_q)):
-        p = [d]
-        while p[-1] != -9999 and p[-1] != s:
-            p.append(predecessors[i, p[-1]])
-        paths.append(p[::-1])
-
-    # Convert paths to ij indices
-    paths_ij = [np.array(_to_ij(p)).T for p in paths]
+    if return_path is True or return_length is True:
+        total_costs, predecessors = scs.csgraph.dijkstra(g, indices=sources_q, return_predecessors=True)
+        # Reconstruct paths
+        paths = []
+        for i, (s, d) in enumerate(zip(sources_q, destinations_q)):
+            p = [d]
+            while p[-1] != -9999 and p[-1] != s:
+                p.append(predecessors[i, p[-1]])
+            paths.append(p[::-1])
+        # Convert paths to ij indices
+        paths_ij = [np.array(_to_ij(p)).T for p in paths]
+    else:
+        total_costs = scs.csgraph.dijkstra(g, indices=sources_q)
+        paths_ij = None
 
     # Pack output
-    output = [paths_ij]
+    output = [total_costs[np.arange(destinations_q.size), destinations_q]]
+    if return_path:
+        output.append(paths_ij)
     if return_length:
         lengths = [np.sum(np.sqrt(np.sum(np.diff(p, axis=0) ** 2, axis=1))) for p in paths_ij]
         output.append(lengths)
-    if return_total_cost:
-        output.append(total_costs[np.arange(destinations_q.size), destinations_q])
 
+    # Reduce dimensionality if input was 1D
     if indices_start.shape[0] == 1:
         output = [ou[0] for ou in output]
 
-    return tuple(output)
+    if return_length is False and return_path is False:
+        return output[0]
+    else:
+        return tuple(output)
