@@ -12,7 +12,7 @@ Python package wrapping scipy's dijkstra with a grid-based interface
 >>> target = (48, 58)
 >>> total_cost, path = gridijkstra.plan(costs, start, target, return_path=True)
 >>> print(f'Full path length: {total_cost}')
-Full path length: 102.0
+'Full path length: 102.0'
 ```
 
 Three use cases are shown below. See scripts/examples.ipynb for a notebook with examples
