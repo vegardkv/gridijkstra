@@ -1,13 +1,10 @@
 # gridijkstra
 Python package wrapping scipy's dijkstra with a grid-based interface
 
-Suited for gridded 2D path planning.
+Suited for gridded 2D path planning. Three examples are shown below. See scripts/examples.ipynb for a notebook with examples
 
-#### TODO: generate example plots via examples.ipynb and include plots in README.md
+![](scripts/example1.svg)
 
-example 1: b/w path planning, 4 neighbors
-example 2: random hills
-example 3: upland
+![](scripts/example2.svg)
 
-    <script src="https://cdn.plot.ly/plotly-1.58.4.min.js"></script>
-<iframe src="scripts/example1.html" width="100%" height="400" id="igraph" scrolling="no" seamless="seamless" frameBorder="0"> </iframe>
+![](scripts/example3.svg)
