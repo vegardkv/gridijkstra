@@ -1,5 +1,3 @@
-from dataclasses import dataclass
-
 from typing import Optional, List, Tuple, Union, Dict
 import scipy.sparse as scs
 import numpy as np
@@ -126,17 +124,31 @@ class _RoutingGraph:
             # Define index transformation functions
             # TODO: verify that all costs-elements have same shape
             self._ni, self._nj = next(iter(costs.values())).shape
-            ns = len(costs)
 
             # Find all valid nodes and edges
-            # TODO: if costs is inf or nan: ignore
-            g0_ij = np.repeat(np.argwhere(np.ones((self._ni, self._nj))), ns, axis=0)
-            g1_ij = g0_ij.copy()
-            g_costs = np.zeros(g0_ij.shape[0])
-            for i, s in enumerate(costs):
-                g1_ij[i::ns] += s
-                # Costs are interpreted as intensity, thus we need to scale with stencil length
-                g_costs[i::ns] = costs[s].flatten() * np.sqrt(s[0] ** 2 + s[1] ** 2)
+            f0_ij = []
+            f1_ij = []
+            f_costs = []
+            for di, dj in costs.keys():
+                can_leave = ~np.isnan(costs[(di, dj)])
+                can_enter = np.roll(can_leave, shift=(-di, -dj), axis=(0, 1))
+                for si in range(abs(di)):
+                    can_enter[si if np.sign(di) < 0 else (si - 1), :] = 0
+                for sj in range(abs(dj)):
+                    can_enter[:, sj if np.sign(dj) < 0 else (sj - 1)] = 0
+                can_traverse = can_leave & can_enter
+                can_traverse_ij = np.argwhere(can_traverse)
+                f0_ij.append(can_traverse_ij)
+                f1_ij.append(can_traverse_ij + np.array([[di, dj]]))
+                f_costs.append(
+                    costs[(di, dj)][can_traverse]
+                    * np.sqrt(dj ** 2 + di ** 2)
+                )
+            f0_ij = np.vstack(f0_ij)
+            f1_ij = np.vstack(f1_ij)
+            f_costs = np.hstack(f_costs)
+
+            g0_ij, g1_ij, g_costs = f0_ij, f1_ij, f_costs
 
             invalid = np.any(g0_ij < 0, axis=1)
             invalid |= np.any(g1_ij < 0, axis=1)

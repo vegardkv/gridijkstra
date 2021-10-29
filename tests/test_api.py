@@ -83,7 +83,7 @@ class TestIntensityCosts(unittest.TestCase):
         self.assertEqual(length, 7)
         self.assertEqual(total, 14)
 
-    def test_nan_planning(self):
+    def test_invalid_nan_planning(self):
         costs = np.ones((10, 10))
         costs[:, 5] = np.nan
         total = gridijkstra.plan(costs, [1, 1], [8, 8])
@@ -163,3 +163,12 @@ class TestAsymmetricCosts(unittest.TestCase):
         path_exists[15:] = (ij0[15:, 0] >= ij1[15:, 0]) & (ij0[15:, 1] <= ij1[15:, 1])
         totals = gridijkstra.plan(costs, ij0, ij1)
         self.assertListEqual(path_exists.tolist(), (~np.isinf(totals)).tolist())
+
+    def test_valid_nan_planning(self):
+        traversable = np.zeros((10, 12), dtype=bool)
+        traversable[1:8, 1:4] = 1
+        traversable[1:4, 1:8] = 1
+        traversable[6:8, 1:8] = 1
+        stencil = [(i, j) for i in range(-1, 2) for j in range(-1, 2) if not (i == j == 0)]
+        length = gridijkstra.plan(np.where(traversable, 1, np.nan), [1, 7], [7, 7], stencil=stencil)
+        self.assertAlmostEqual(length, 4 + 5 * np.sqrt(2))
