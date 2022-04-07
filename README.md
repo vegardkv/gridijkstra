@@ -1,5 +1,7 @@
-# gridijkstra
-Python package wrapping scipy's dijkstra with a grid-based interface
+
+`gridijkstra` is a Python package for 2D grid-based path-planning
+
+The package wraps scipy's dijkstra with a grid-oriented interface:
 
 ```python
 >>> import gridijkstra
@@ -10,12 +12,20 @@ Python package wrapping scipy's dijkstra with a grid-based interface
 >>> costs[30:40, 30:40] = 1e30
 >>> start = (2, 2)
 >>> target = (48, 58)
->>> total_cost, path = gridijkstra.plan(costs, start, target, return_path=True)
+>>> total_cost = gridijkstra.plan(costs, start, target)
 >>> print(f'Full path length: {total_cost}')
 'Full path length: 102.0'
 ```
 
-Three use cases are shown below. See scripts/examples.ipynb for a notebook with examples
+#### Installation
+
+<pre>
+pip install gridijkstra
+</pre>
+
+# Examples
+
+See scripts/examples.ipynb for the code:
 
 ![](scripts/example1.svg)
 
