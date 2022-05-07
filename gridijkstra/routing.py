@@ -125,42 +125,8 @@ class _RoutingGraph:
             # TODO: verify that all costs-elements have same shape
             self._ni, self._nj = next(iter(costs.values())).shape
 
-            # Find all valid nodes and edges
-            f0_ij = []
-            f1_ij = []
-            f_costs = []
-            for di, dj in costs.keys():
-                can_leave = ~np.isnan(costs[(di, dj)])
-                can_enter = np.roll(can_leave, shift=(-di, -dj), axis=(0, 1))
-                for si in range(abs(di)):
-                    can_enter[si if np.sign(di) < 0 else (si - 1), :] = 0
-                for sj in range(abs(dj)):
-                    can_enter[:, sj if np.sign(dj) < 0 else (sj - 1)] = 0
-                can_traverse = can_leave & can_enter
-                can_traverse_ij = np.argwhere(can_traverse)
-                f0_ij.append(can_traverse_ij)
-                f1_ij.append(can_traverse_ij + np.array([[di, dj]]))
-                f_costs.append(
-                    costs[(di, dj)][can_traverse]
-                    * np.sqrt(dj ** 2 + di ** 2)
-                )
-            f0_ij = np.vstack(f0_ij)
-            f1_ij = np.vstack(f1_ij)
-            f_costs = np.hstack(f_costs)
-
-            g0_ij, g1_ij, g_costs = f0_ij, f1_ij, f_costs
-
-            invalid = np.any(g0_ij < 0, axis=1)
-            invalid |= np.any(g1_ij < 0, axis=1)
-            invalid |= (g0_ij[:, 0] >= self._ni)
-            invalid |= (g0_ij[:, 1] >= self._nj)
-            invalid |= (g1_ij[:, 0] >= self._ni)
-            invalid |= (g1_ij[:, 1] >= self._nj)
-
             # Filter invalid edges
-            g0_ij = g0_ij[~invalid]
-            g1_ij = g1_ij[~invalid]
-            g_costs = g_costs[~invalid]
+            g0_ij, g1_ij, g_costs = _extract_stencil_costs(costs, self._ni, self._nj)
 
         # Convert to flat index
         g0_q = self.from_ij(g0_ij[:, 0], g0_ij[:, 1])
@@ -174,3 +140,41 @@ class _RoutingGraph:
 
     def from_ij(self, _i, _j):
         return np.ravel_multi_index((_i, _j), dims=(self._ni, self._nj))
+
+
+def _extract_stencil_costs(costs, ni, nj):
+    # Find all valid nodes and edges
+    g0_ij = []
+    g1_ij = []
+    g_costs = []
+    for di, dj in costs.keys():
+        can_leave = ~np.isnan(costs[(di, dj)])
+        can_enter = np.roll(can_leave, shift=(-di, -dj), axis=(0, 1))
+        for si in range(abs(di)):
+            can_enter[si if np.sign(di) < 0 else (si - 1), :] = 0
+        for sj in range(abs(dj)):
+            can_enter[:, sj if np.sign(dj) < 0 else (sj - 1)] = 0
+        can_traverse = can_leave & can_enter
+        can_traverse_ij = np.argwhere(can_traverse)
+        g0_ij.append(can_traverse_ij)
+        g1_ij.append(can_traverse_ij + np.array([[di, dj]]))
+        g_costs.append(
+            costs[(di, dj)][can_traverse]
+            * np.sqrt(dj ** 2 + di ** 2)
+        )
+    g0_ij = np.vstack(g0_ij)
+    g1_ij = np.vstack(g1_ij)
+    g_costs = np.hstack(g_costs)
+
+    invalid = np.any(g0_ij < 0, axis=1)
+    invalid |= np.any(g1_ij < 0, axis=1)
+    invalid |= (g0_ij[:, 0] >= ni)
+    invalid |= (g0_ij[:, 1] >= nj)
+    invalid |= (g1_ij[:, 0] >= ni)
+    invalid |= (g1_ij[:, 1] >= nj)
+
+    # Filter invalid edges
+    g0_ij = g0_ij[~invalid]
+    g1_ij = g1_ij[~invalid]
+    g_costs = g_costs[~invalid]
+    return g0_ij, g1_ij, g_costs
